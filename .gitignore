@@ -1,0 +1,6 @@
+venv/
+backend/venv/
+frontend/node_modules/
+.env
+*.sqlite3
+
