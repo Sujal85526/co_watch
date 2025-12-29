@@ -13,7 +13,7 @@ export default function LoginPage() {
     setLoading(true)
     try {
       await login(formData.username, formData.password)
-      navigate('/rooms')
+      navigate('/welcome')  // ← FIXED: Welcome page
     } catch (error) {
       console.error('Login failed:', error)
     } finally {
@@ -21,6 +21,7 @@ export default function LoginPage() {
     }
   }
 
+  // ... rest of form JSX stays same
   return (
     <div className="min-h-screen flex items-center justify-center bg-gradient-to-br from-slate-900 to-slate-800 p-8">
       <div className="max-w-md w-full bg-white/10 backdrop-blur-xl rounded-2xl p-8 shadow-2xl border border-white/20">

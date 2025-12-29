@@ -12,7 +12,7 @@ export function AuthProvider({ children }) {
     const token = localStorage.getItem('cowatch_token')
     const username = localStorage.getItem('cowatch_username')
     if (token && username) {
-      setUser({ username })
+      setUser({ username })  // ← Works with new format
       setIsAuthenticated(true)
     }
     setLoading(false)
@@ -20,13 +20,13 @@ export function AuthProvider({ children }) {
 
   const loginUser = async (username, password) => {
     const data = await login(username, password)
-    setUser({ username: data.user.username })
+    setUser({ username: data.username })  // ← FIXED
     setIsAuthenticated(true)
   }
 
   const registerUser = async (username, password) => {
     const data = await register(username, password)
-    setUser({ username: data.user.username })
+    setUser({ username: data.username })  // ← FIXED
     setIsAuthenticated(true)
   }
 
