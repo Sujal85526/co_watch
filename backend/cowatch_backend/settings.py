@@ -37,6 +37,7 @@ INSTALLED_APPS = [
     'rest_framework',
     'accounts',
     'rooms',
+    'channels',
     'rest_framework.authtoken', 
     'django.contrib.admin',
     'django.contrib.auth',
@@ -56,6 +57,17 @@ MIDDLEWARE = [
     'django.contrib.messages.middleware.MessageMiddleware',
     'django.middleware.clickjacking.XFrameOptionsMiddleware',
 ]
+
+ASGI_APPLICATION = "cowatch_backend.asgi.application"
+
+CHANNEL_LAYERS = {
+    "default": {
+        "BACKEND": "channels_redis.core.RedisChannelLayer",
+        "CONFIG": {
+            "hosts": [("127.0.0.1", 6379)],
+        },
+    },
+}
 
 REST_FRAMEWORK = {
     'DEFAULT_AUTHENTICATION_CLASSES': [
