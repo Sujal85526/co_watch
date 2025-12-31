@@ -5,7 +5,6 @@ from channels.auth import AuthMiddlewareStack
 import cowatch_backend.routing
 
 os.environ.setdefault('DJANGO_SETTINGS_MODULE', 'cowatch_backend.settings')
-
 django_asgi_app = get_asgi_application()
 
 application = ProtocolTypeRouter({
@@ -13,6 +12,6 @@ application = ProtocolTypeRouter({
     "websocket": AuthMiddlewareStack(
         URLRouter(
             cowatch_backend.routing.websocket_urlpatterns
-        ),
+        )
     ),
 })

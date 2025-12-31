@@ -31,3 +31,12 @@ export async function createRoom(name) {
     throw error
   }
 }
+
+export const updateRoom = async (id, data) => {
+  const token = localStorage.getItem('token')
+  const response = await httpClient.patch(`/rooms/${id}/`, data, {
+    headers: { Authorization: `Token ${token}` }
+  })
+  return response.data
+}
+

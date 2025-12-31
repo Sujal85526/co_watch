@@ -1,9 +1,10 @@
 import { useState, useEffect, useRef } from 'react'
 import { useParams, Link } from 'react-router-dom'
 import { useAuth } from '../../hooks/useAuth.jsx'
-import { getRoom } from '../../api/roomsApi.js'
 import { useWebSocket } from '../../hooks/useWebSocket.js'
 import { ArrowLeft, Share2, Play, MessageCircle, Users, X, Copy, ChevronRight } from 'lucide-react'
+import { getRoom, updateRoom } from '../../api/roomsApi.js'  // ✅ updateRoom added
+import toast from 'react-hot-toast'  // ✅ For success/error messages
 
 export default function RoomDetailPage() {
   const { id } = useParams()
@@ -15,7 +16,30 @@ export default function RoomDetailPage() {
   const [messages, setMessages] = useState([])
   const [chatInput, setChatInput] = useState('')
   const [isConnected, setIsConnected] = useState(false)
-  
+  const [videoUrl, setVideoUrl] = useState('')
+  const [updatingVideo, setUpdatingVideo] = useState(false)
+  const [isPlaying, setIsPlaying] = useState(false)
+  const [currentTime, setCurrentTime] = useState(0)
+
+  const extractVideoId = (url) => {
+    const regex = /(?:youtube\.com\/(?:[^\/]+\/.+\/|(?:v|e(?:mbed)?)\/|.*[?&]v=)|youtu\.be\/)([^"&?\/\s]{11})/
+    const match = url.match(regex)
+    return match ? match[1] : ''
+  }
+
+  // 🆕 postMessage API
+  const postToPlayer = (action, value = '') => {
+    const iframe = document.querySelector('iframe[src*="youtube.com"]')
+    if (iframe?.contentWindow) {
+  iframe.contentWindow.postMessage(`{"event":"command","func":"${action}","args":"${value}"}`, '*')
+  }
+}
+
+  const togglePlayPause = () => {
+    postToPlayer(isPlaying ? 'pauseVideo' : 'playVideo')
+    setIsPlaying(!isPlaying)
+  }
+
   // ✅ FIXED: Get full WebSocket object
   const ws = useWebSocket(room?.code || id)
 
@@ -34,6 +58,23 @@ export default function RoomDetailPage() {
       setLoading(false)
     }
   }
+
+  const handleUpdateVideo = async (e) => {
+    e.preventDefault()
+    if (!videoUrl.trim()) return
+
+    setUpdatingVideo(true)
+    try {
+      await updateRoom(room.id, { youtube_url: videoUrl.trim() })
+      toast.success('Video updated!')
+      fetchRoom()  // Refresh room
+      setVideoUrl('')
+  } catch (error) {
+    toast.error('Failed to update video')
+  } finally {
+    setUpdatingVideo(false)
+  }
+}
 
   // ✅ FIXED: WebSocket message handler
   useEffect(() => {
@@ -116,6 +157,39 @@ if (loading || !room) {
         </div>
       </div>
 
+      {/* 🆕 DEBUG YOUTUBE URL FORM */}
+      {user && !room?.youtube_url && (
+        <div className="max-w-7xl mx-auto px-6 py-6">
+          <div className="p-6 bg-gradient-to-r from-indigo-50 to-purple-50 rounded-3xl border border-indigo-200 max-w-2xl mx-auto">
+            <div className="flex items-center space-x-3 mb-4">
+              <svg className="w-6 h-6 text-indigo-600" fill="currentColor" viewBox="0 0 24 24">
+                <path d="M21.582 11.028a.998.998 0 00-.996-.884H4.414a1 1 0 00-.996.884l-1.582 9.74a1 1 0 00.996 1.156h21.15a1 1 0 00.996-1.156l-1.582-9.74zM12 16.5a1.5 1.5 0 110-3 1.5 1.5 0 010 3z"/>
+              </svg>
+              <h3 className="text-xl font-bold text-gray-900">Add YouTube Video</h3>
+            </div>
+            
+            <form onSubmit={handleUpdateVideo} className="flex gap-3">
+              <input
+                type="url"
+                placeholder="https://youtube.com/watch?v=..."
+                value={videoUrl}
+                onChange={(e) => setVideoUrl(e.target.value)}
+                className="flex-1 px-4 py-3 border border-gray-300 rounded-2xl focus:ring-2 focus:ring-indigo-500 focus:border-transparent shadow-sm"
+                disabled={updatingVideo}
+              />
+              <button 
+                type="submit" 
+                disabled={!videoUrl.trim() || updatingVideo}
+                className="px-8 py-3 bg-gradient-to-r from-indigo-600 to-purple-600 text-white font-bold rounded-2xl hover:from-indigo-700 hover:to-purple-700 disabled:opacity-50 disabled:cursor-not-allowed shadow-lg transition-all whitespace-nowrap"
+              >
+                {updatingVideo ? 'Saving...' : 'Set Video'}
+              </button>
+            </form>
+          </div>
+        </div>
+      )}
+
+
       {/* MAIN LAYOUT: Player + RIGHT Chat Sidebar */}
       <div className="max-w-7xl mx-auto px-6 py-12">
         <div className="flex gap-6">
@@ -123,22 +197,38 @@ if (loading || !room) {
           <div className="flex-1 max-w-5xl">
             <div className="bg-gradient-to-br from-slate-900 to-slate-800 rounded-3xl p-8 text-white text-center shadow-2xl">
               <div className="aspect-video bg-black rounded-2xl overflow-hidden mx-auto max-w-4xl shadow-2xl mb-8">
-                <div className="w-full h-full flex items-center justify-center bg-gradient-to-br from-indigo-900/50 to-purple-900/50">
-                  <Play className="w-32 h-32 text-white/80" />
-                </div>
-              </div>
-              <div className="flex justify-center space-x-4">
-                <button className="flex items-center space-x-2 bg-white/20 backdrop-blur border border-white/30 text-white px-8 py-4 rounded-2xl font-bold hover:bg-white/30 transition-all shadow-lg">
-                  <Play className="w-5 h-5" />
-                  <span>Play/Pause</span>
-                </button>
-                <button className="flex items-center space-x-2 bg-white/20 backdrop-blur border border-white/30 text-white px-8 py-4 rounded-2xl font-bold hover:bg-white/30 transition-all shadow-lg">
-                  <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M15.232 5.232l3.536 3.536m-2.036-5.036a2.5 2.5 0 113.536 3.536L6.5 21.5h13m-2.5-15l1.4-1.4a2 2 0 012.832 0l2.5 2.5a2 2 0 010 2.832l-5.262 5.262A2 2 0 0020.262 19a2 2 0 01-3.237-3.175L15 17.25m0 0L9 11l1.6-1.6s2.8-1.225 4.4 1.375c.4.5.62 1.15.62 1.85 0 .688-.215 1.33-.62 1.85z" />
-                  </svg>
-                  <span>Seek</span>
-                </button>
-              </div>
+  {room.youtube_url ? (
+  <iframe
+    src={`https://www.youtube.com/embed/${extractVideoId(room.youtube_url)}?enablejsapi=1&rel=0&modestbranding=1&playsinline=1`}
+    allow="accelerometer; autoplay; clipboard-write; encrypted-media; gyroscope; picture-in-picture"
+    allowFullScreen
+    className="w-full h-full"
+    title="YouTube Player"
+  />
+  ) : (
+    <div className="w-full h-full flex items-center justify-center bg-gradient-to-br from-indigo-900/50 to-purple-900/50">
+      <Play className="w-32 h-32 text-white/80" />
+      <p className="text-white/80 mt-4 font-medium">Set YouTube URL above</p>
+    </div>
+  )}
+</div>
+
+             <div className="flex justify-center space-x-4">
+  <button 
+    onClick={togglePlayPause}
+    className="flex items-center space-x-2 bg-white/20 backdrop-blur border border-white/30 text-white px-8 py-4 rounded-2xl font-bold hover:bg-white/30 transition-all shadow-lg"
+  >
+    {isPlaying ? (
+      <svg className="w-5 h-5" fill="currentColor" viewBox="0 0 24 24">
+        <path d="M6 19h4V5H6v14zm8-14v14h4V5h-4z"/>
+      </svg>
+    ) : (
+      <Play className="w-5 h-5" />
+    )}
+    <span>{isPlaying ? 'Pause' : 'Play'}</span>
+  </button>
+</div>
+
             </div>
 
             {/* TOGGLE CHAT BUTTON */}
