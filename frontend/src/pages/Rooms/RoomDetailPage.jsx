@@ -1,10 +1,11 @@
-import { useState, useEffect, useRef } from 'react'
+import { useState, useEffect, useCallback } from 'react'
 import { useParams, Link } from 'react-router-dom'
 import { useAuth } from '../../hooks/useAuth.jsx'
 import { useWebSocket } from '../../hooks/useWebSocket.js'
 import { ArrowLeft, Share2, Play, MessageCircle, Users, X, Copy, ChevronRight } from 'lucide-react'
-import { getRoom, updateRoom } from '../../api/roomsApi.js'  // ✅ updateRoom added
-import toast from 'react-hot-toast'  // ✅ For success/error messages
+import { getRoom, updateRoom } from '../../api/roomsApi.js'
+import toast from 'react-hot-toast'
+
 
 export default function RoomDetailPage() {
   const { id } = useParams()
@@ -15,33 +16,43 @@ export default function RoomDetailPage() {
   const { user } = useAuth()
   const [messages, setMessages] = useState([])
   const [chatInput, setChatInput] = useState('')
-  const [isConnected, setIsConnected] = useState(false)
   const [videoUrl, setVideoUrl] = useState('')
   const [updatingVideo, setUpdatingVideo] = useState(false)
   const [isPlaying, setIsPlaying] = useState(false)
-  const [currentTime, setCurrentTime] = useState(0)
+  const [onlineCount, setOnlineCount] = useState(0)
 
-  const extractVideoId = (url) => {
-    const regex = /(?:youtube\.com\/(?:[^\/]+\/.+\/|(?:v|e(?:mbed)?)\/|.*[?&]v=)|youtu\.be\/)([^"&?\/\s]{11})/
-    const match = url.match(regex)
-    return match ? match[1] : ''
-  }
+  // ✅ DEFINE handleMessage FIRST with useCallback
+  const handleMessage = useCallback((event) => {
+    try {
+      const data = JSON.parse(event.data)
+      console.log('Received WS message:', data)
 
-  // 🆕 postMessage API
-  const postToPlayer = (action, value = '') => {
-    const iframe = document.querySelector('iframe[src*="youtube.com"]')
-    if (iframe?.contentWindow) {
-  iframe.contentWindow.postMessage(`{"event":"command","func":"${action}","args":"${value}"}`, '*')
-  }
-}
+      if (data.type === 'chat_message') {
+        setMessages(prev => [...prev, data])
+      } else if (data.type === 'user_joined') {
+        console.log('User joined, setting count to:', data.online_count)
+        setMessages(prev => [...prev, {
+          type: 'system',
+          message: `${data.username} joined`,
+          username: 'System'
+        }])
+        setOnlineCount(data.online_count)
+      } else if (data.type === 'user_left') {
+        console.log('User left, setting count to:', data.online_count)
+        setMessages(prev => [...prev, {
+          type: 'system',
+          message: `${data.username} left`,
+          username: 'System'
+        }])
+        setOnlineCount(data.online_count)
+      }
+    } catch (e) {
+      console.error('WS message parse error:', e)
+    }
+  }, [])
 
-  const togglePlayPause = () => {
-    postToPlayer(isPlaying ? 'pauseVideo' : 'playVideo')
-    setIsPlaying(!isPlaying)
-  }
-
-  // ✅ FIXED: Get full WebSocket object
-  const ws = useWebSocket(room?.code || id)
+  // ✅ NOW call useWebSocket with handleMessage
+  const { sendChat, isConnected } = useWebSocket(room?.code || id, handleMessage)
 
   useEffect(() => {
     fetchRoom()
@@ -59,6 +70,24 @@ export default function RoomDetailPage() {
     }
   }
 
+  const extractVideoId = (url) => {
+    const regex = /(?:youtube\.com\/(?:[^\/]+\/.+\/|(?:v|e(?:mbed)?)\/|.*[?&]v=)|youtu\.be\/)([^"&?\/\s]{11})/
+    const match = url.match(regex)
+    return match ? match[1] : ''
+  }
+
+  const postToPlayer = (action, value = '') => {
+    const iframe = document.querySelector('iframe[src*="youtube.com"]')
+    if (iframe?.contentWindow) {
+      iframe.contentWindow.postMessage(`{"event":"command","func":"${action}","args":"${value}"}`, '*')
+    }
+  }
+
+  const togglePlayPause = () => {
+    postToPlayer(isPlaying ? 'pauseVideo' : 'playVideo')
+    setIsPlaying(!isPlaying)
+  }
+
   const handleUpdateVideo = async (e) => {
     e.preventDefault()
     if (!videoUrl.trim()) return
@@ -67,66 +96,24 @@ export default function RoomDetailPage() {
     try {
       await updateRoom(room.id, { youtube_url: videoUrl.trim() })
       toast.success('Video updated!')
-      fetchRoom()  // Refresh room
+      fetchRoom()
       setVideoUrl('')
-  } catch (error) {
-    toast.error('Failed to update video')
-  } finally {
-    setUpdatingVideo(false)
-  }
-}
-
-  // ✅ FIXED: WebSocket message handler
-  useEffect(() => {
-    if (!ws?.socketRef?.current) return
-
-    const socket = ws.socketRef.current
-
-    const handleMessage = (event) => {
-      try {
-        const data = JSON.parse(event.data)
-        if (data.type === 'chat_message') {
-          setMessages(prev => [...prev, data])
-        }
-      } catch (e) {
-        console.error('WS message parse error:', e)
-      }
+    } catch (error) {
+      toast.error('Failed to update video')
+    } finally {
+      setUpdatingVideo(false)
     }
-
-    const handleOpen = () => {
-      setIsConnected(true);
-      // Send join message with username
-      socket.send(JSON.stringify({
-        type: "join",
-        username: user.username
-      }));
-    };
-
-    const handleClose = () => setIsConnected(false)
-
-    socket.addEventListener('message', handleMessage)
-    socket.addEventListener('open', handleOpen)
-    socket.addEventListener('close', handleClose)
-
-    return () => {
-      socket.removeEventListener('message', handleMessage)
-      socket.removeEventListener('open', handleOpen)
-      socket.removeEventListener('close', handleClose)
-    }
-  }, [ws, room?.code])
-
-  // ✅ Send chat message
-const handleSendMessage = (e) => {
-  e.preventDefault()
-  if (chatInput.trim() && ws?.sendChat) {
-    ws.sendChat(chatInput.trim()) 
-    setChatInput('')
   }
-}
 
+  const handleSendMessage = (e) => {
+    e.preventDefault()
+    if (chatInput.trim() && sendChat) {
+      sendChat(chatInput.trim())
+      setChatInput('')
+    }
+  }
 
-
-if (loading || !room) {
+  if (loading || !room) {
     return (
       <div className="min-h-screen flex items-center justify-center bg-gray-50 pt-20">
         <div className="text-center">
@@ -165,7 +152,7 @@ if (loading || !room) {
         </div>
       </div>
 
-      {/* 🆕 DEBUG YOUTUBE URL FORM */}
+      {/* YouTube URL Form */}
       {user && !room?.youtube_url && (
         <div className="max-w-7xl mx-auto px-6 py-6">
           <div className="p-6 bg-gradient-to-r from-indigo-50 to-purple-50 rounded-3xl border border-indigo-200 max-w-2xl mx-auto">
@@ -175,7 +162,7 @@ if (loading || !room) {
               </svg>
               <h3 className="text-xl font-bold text-gray-900">Add YouTube Video</h3>
             </div>
-            
+
             <form onSubmit={handleUpdateVideo} className="flex gap-3">
               <input
                 type="url"
@@ -197,46 +184,44 @@ if (loading || !room) {
         </div>
       )}
 
-
-      {/* MAIN LAYOUT: Player + RIGHT Chat Sidebar */}
+      {/* MAIN LAYOUT: Player + Chat Sidebar */}
       <div className="max-w-7xl mx-auto px-6 py-12">
         <div className="flex gap-6">
-          {/* VIDEO PLAYER - LEFT SIDE */}
+          {/* VIDEO PLAYER */}
           <div className="flex-1 max-w-5xl">
             <div className="bg-gradient-to-br from-slate-900 to-slate-800 rounded-3xl p-8 text-white text-center shadow-2xl">
               <div className="aspect-video bg-black rounded-2xl overflow-hidden mx-auto max-w-4xl shadow-2xl mb-8">
-  {room.youtube_url ? (
-  <iframe
-    src={`https://www.youtube.com/embed/${extractVideoId(room.youtube_url)}?enablejsapi=1&rel=0&modestbranding=1&playsinline=1`}
-    allow="accelerometer; autoplay; clipboard-write; encrypted-media; gyroscope; picture-in-picture"
-    allowFullScreen
-    className="w-full h-full"
-    title="YouTube Player"
-  />
-  ) : (
-    <div className="w-full h-full flex items-center justify-center bg-gradient-to-br from-indigo-900/50 to-purple-900/50">
-      <Play className="w-32 h-32 text-white/80" />
-      <p className="text-white/80 mt-4 font-medium">Set YouTube URL above</p>
-    </div>
-  )}
-</div>
+                {room.youtube_url ? (
+                  <iframe
+                    src={`https://www.youtube.com/embed/${extractVideoId(room.youtube_url)}?enablejsapi=1&rel=0&modestbranding=1&playsinline=1`}
+                    allow="accelerometer; autoplay; clipboard-write; encrypted-media; gyroscope; picture-in-picture"
+                    allowFullScreen
+                    className="w-full h-full"
+                    title="YouTube Player"
+                  />
+                ) : (
+                  <div className="w-full h-full flex flex-col items-center justify-center bg-gradient-to-br from-indigo-900/50 to-purple-900/50">
+                    <Play className="w-32 h-32 text-white/80" />
+                    <p className="text-white/80 mt-4 font-medium">Set YouTube URL above</p>
+                  </div>
+                )}
+              </div>
 
-             <div className="flex justify-center space-x-4">
-  <button 
-    onClick={togglePlayPause}
-    className="flex items-center space-x-2 bg-white/20 backdrop-blur border border-white/30 text-white px-8 py-4 rounded-2xl font-bold hover:bg-white/30 transition-all shadow-lg"
-  >
-    {isPlaying ? (
-      <svg className="w-5 h-5" fill="currentColor" viewBox="0 0 24 24">
-        <path d="M6 19h4V5H6v14zm8-14v14h4V5h-4z"/>
-      </svg>
-    ) : (
-      <Play className="w-5 h-5" />
-    )}
-    <span>{isPlaying ? 'Pause' : 'Play'}</span>
-  </button>
-</div>
-
+              <div className="flex justify-center space-x-4">
+                <button 
+                  onClick={togglePlayPause}
+                  className="flex items-center space-x-2 bg-white/20 backdrop-blur border border-white/30 text-white px-8 py-4 rounded-2xl font-bold hover:bg-white/30 transition-all shadow-lg"
+                >
+                  {isPlaying ? (
+                    <svg className="w-5 h-5" fill="currentColor" viewBox="0 0 24 24">
+                      <path d="M6 19h4V5H6v14zm8-14v14h4V5h-4z"/>
+                    </svg>
+                  ) : (
+                    <Play className="w-5 h-5" />
+                  )}
+                  <span>{isPlaying ? 'Pause' : 'Play'}</span>
+                </button>
+              </div>
             </div>
 
             {/* TOGGLE CHAT BUTTON */}
@@ -253,7 +238,7 @@ if (loading || !room) {
             )}
           </div>
 
-          {/* CHAT SIDEBAR - RIGHT SIDE */}
+          {/* CHAT SIDEBAR */}
           {showChat && (
             <div className="w-80 flex-shrink-0">
               <div className="bg-white rounded-3xl shadow-2xl border border-gray-200 h-fit sticky top-28">
@@ -262,7 +247,7 @@ if (loading || !room) {
                   <div className="flex items-center space-x-3">
                     <MessageCircle className="w-5 h-5" />
                     <h4 className="font-bold text-lg">Live Chat</h4>
-                    <div className={`w-3 h-3 rounded-full ${isConnected ? 'bg-green-400' : 'bg-red-400'}`}></div>
+                    <span className="text-sm bg-white/20 px-2 py-1 rounded-full">{onlineCount} online</span>
                   </div>
                   <button onClick={() => setShowChat(false)} className="p-2 hover:bg-white/20 rounded-xl transition-all">
                     <X className="w-5 h-5" />
@@ -277,16 +262,22 @@ if (loading || !room) {
                     </div>
                   ) : (
                     messages.map((msg, idx) => (
-                      <div key={idx} className="mb-3 last:mb-0">
-                        <div className="flex items-start space-x-2">
-                          <div className="w-8 h-8 bg-gradient-to-r from-indigo-500 to-purple-600 rounded-full flex items-center justify-center text-white font-bold text-sm">
-                            {msg.username?.slice(0, 2).toUpperCase() || '??'}
+                      <div key={idx} className={`mb-3 last:mb-0 ${msg.type === 'system' ? 'text-center' : ''}`}>
+                        {msg.type === 'system' ? (
+                          <div className="text-xs text-gray-500 italic py-1">
+                            {msg.message}
                           </div>
-                          <div>
-                            <span className="font-bold text-sm text-gray-900">{msg.username || 'Anonymous'}</span>
-                            <p className="text-sm text-gray-700 ml-1">{msg.message}</p>
+                        ) : (
+                          <div className="flex items-start space-x-2">
+                            <div className="w-8 h-8 bg-gradient-to-r from-indigo-500 to-purple-600 rounded-full flex items-center justify-center text-white font-bold text-sm">
+                              {msg.username?.slice(0, 2).toUpperCase() || '??'}
+                            </div>
+                            <div>
+                              <span className="font-bold text-sm text-gray-900">{msg.username || 'Anonymous'}</span>
+                              <p className="text-sm text-gray-700 ml-1">{msg.message}</p>
+                            </div>
                           </div>
-                        </div>
+                        )}
                       </div>
                     ))
                   )}

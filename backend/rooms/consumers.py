@@ -1,25 +1,33 @@
 import json
 from channels.generic.websocket import AsyncWebsocketConsumer
+from django.core.cache import cache
 
 
 class RoomConsumer(AsyncWebsocketConsumer):
     async def connect(self):
         self.room_code = self.scope["url_route"]["kwargs"]["code"]
         self.room_group_name = f'room_{self.room_code}'
-        self.username = None  # Will be set by frontend join message
+        self.username = None
         
         await self.channel_layer.group_add(self.room_group_name, self.channel_name)
         await self.accept()
 
 
     async def disconnect(self, close_code):
-        if self.username:  # Only send if user joined
+        if self.username:
+            # Remove from cache
+            cache_key = f'room_{self.room_code}_users'
+            users = cache.get(cache_key, set())
+            users.discard(self.username)
+            cache.set(cache_key, users, 3600)
+            
             await self.channel_layer.group_send(
                 self.room_group_name,
                 {
                     "type": "presence_event",
                     "event": "user_left",
-                    "username": self.username
+                    "username": self.username,
+                    "online_count": len(users)  # ADD
                 }
             )
         await self.channel_layer.group_discard(self.room_group_name, self.channel_name)
@@ -30,20 +38,26 @@ class RoomConsumer(AsyncWebsocketConsumer):
             data = json.loads(text_data)
             msg_type = data.get("type", "")
             
-            # Handle join message
             if msg_type == "join":
                 self.username = data.get("username")
+                
+                # Add to cache
+                cache_key = f'room_{self.room_code}_users'
+                users = cache.get(cache_key, set())
+                users.add(self.username)
+                cache.set(cache_key, users, 3600)
+                
                 await self.channel_layer.group_send(
                     self.room_group_name,
                     {
                         "type": "presence_event",
                         "event": "user_joined",
-                        "username": self.username
+                        "username": self.username,
+                        "online_count": len(users)  # ADD
                     }
                 )
                 return
             
-            # Handle chat message
             message = data.get("message", "")
             username = data.get("username")
             
@@ -70,5 +84,6 @@ class RoomConsumer(AsyncWebsocketConsumer):
     async def presence_event(self, event):
         await self.send(text_data=json.dumps({
             "type": event["event"],
-            "username": event["username"]
+            "username": event["username"],
+            "online_count": event.get("online_count", 1)  
         }))
