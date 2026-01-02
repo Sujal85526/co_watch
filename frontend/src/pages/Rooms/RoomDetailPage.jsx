@@ -93,7 +93,15 @@ export default function RoomDetailPage() {
       }
     }
 
-    const handleOpen = () => setIsConnected(true)
+    const handleOpen = () => {
+      setIsConnected(true);
+      // Send join message with username
+      socket.send(JSON.stringify({
+        type: "join",
+        username: user.username
+      }));
+    };
+
     const handleClose = () => setIsConnected(false)
 
     socket.addEventListener('message', handleMessage)
@@ -143,7 +151,7 @@ if (loading || !room) {
               <h1 className="text-4xl font-bold text-gray-900 mb-2">{room.name}</h1>
               <div className="flex items-center space-x-6 text-sm text-gray-600">
                 <span className="font-mono bg-indigo-100 text-indigo-700 px-3 py-1 rounded-full font-bold">{room.code}</span>
-                <span>Owner: {room.owner}</span>
+                <span>Owner: {room.owner_username}</span>
               </div>
             </div>
             <button 

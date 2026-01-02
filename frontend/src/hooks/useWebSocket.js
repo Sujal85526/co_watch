@@ -1,7 +1,9 @@
 import { useEffect, useRef, useCallback } from "react";
+import { useAuth } from "./useAuth.jsx";  // Your auth hook
 
 export function useWebSocket(roomCode) {
   const socketRef = useRef(null);
+  const { user } = useAuth();  // Get logged-in user
 
   useEffect(() => {
     if (!roomCode) return;
@@ -21,9 +23,13 @@ export function useWebSocket(roomCode) {
 
   const sendChat = useCallback((message) => {
     if (socketRef.current?.readyState === WebSocket.OPEN) {
-      socketRef.current.send(JSON.stringify({ type: "chat.message", message }));
+      socketRef.current.send(JSON.stringify({ 
+        type: "chat.message", 
+        message,
+        username: user?.username
+      }));
     }
-  }, []);
+  }, [user?.username]);
 
   return { sendChat, socketRef };
 }
