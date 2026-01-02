@@ -4,6 +4,7 @@ import HomePage from './pages/HomePage.jsx'
 import WelcomePage from './pages/WelcomePage.jsx'
 import LoginPage from './pages/Auth/LoginPage.jsx'
 import RegisterPage from './pages/Auth/RegisterPage.jsx'
+import JoinRoomPage from './pages/Rooms/JoinRoomPage.jsx' 
 import RoomsListPage from './pages/Rooms/RoomsListPage.jsx'
 import RoomDetailPage from './pages/Rooms/RoomDetailPage.jsx'
 
@@ -21,6 +22,7 @@ export default function Router() {
       <Route path="/register" element={<RegisterPage />} />
       <Route path="/rooms" element={<ProtectedRoute><RoomsListPage /></ProtectedRoute>} />
       <Route path="/rooms/:id" element={<ProtectedRoute><RoomDetailPage /></ProtectedRoute>} />
+      <Route path="/join" element={<ProtectedRoute><JoinRoomPage /></ProtectedRoute>} />  
       <Route path="*" element={<Navigate to="/" replace />} />
     </Routes>
   )

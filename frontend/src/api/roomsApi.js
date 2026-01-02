@@ -40,3 +40,11 @@ export const updateRoom = async (id, data) => {
   return response.data
 }
 
+export const getRoomByCode = async (code) => {
+  const token = localStorage.getItem('token');
+  const response = await httpClient.get(`/code/${code}/`, {
+    headers: { Authorization: `Token ${token}` }
+  });
+  return response.data;
+};
+

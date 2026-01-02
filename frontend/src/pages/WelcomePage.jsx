@@ -15,14 +15,14 @@ export default function WelcomePage() {
           className="group bg-white text-indigo-600 px-8 py-6 rounded-2xl font-bold text-lg hover:bg-gray-100 shadow-2xl hover:shadow-3xl transition-all duration-300 flex flex-col items-center space-y-3 h-32 justify-center"
         >
           <Users className="w-8 h-8 group-hover:scale-110 transition-transform" />
-          <span>Go to Your Rooms</span>
+          <span> Go to Your Rooms</span>
         </Link>
         <Link 
-          to="/rooms" 
+          to="/join" 
           className="group bg-white/20 backdrop-blur-sm border-2 border-white/50 text-white px-8 py-6 rounded-2xl font-bold text-lg hover:bg-white hover:text-indigo-600 shadow-2xl hover:shadow-3xl transition-all duration-300 flex flex-col items-center space-y-3 h-32 justify-center"
         >
           <Plus className="w-8 h-8 group-hover:scale-110 transition-transform" />
-          <span>Create New Room</span>
+          <span> Join Room</span>
         </Link>
       </div>
     </div>
