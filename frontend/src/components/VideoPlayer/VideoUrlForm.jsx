@@ -5,7 +5,7 @@ import toast from 'react-hot-toast';
  * Form for setting YouTube video URL
  * Single Responsibility: Handle video URL input
  */
-export default function VideoUrlForm({ onSubmit, initialUrl = '' }) {
+export default function VideoUrlForm({ onSubmit, initialUrl = '', buttonText = 'Set Video' }) {
   const [url, setUrl] = useState(initialUrl);
   const [isLoading, setIsLoading] = useState(false);
 
@@ -17,10 +17,17 @@ export default function VideoUrlForm({ onSubmit, initialUrl = '' }) {
       return;
     }
 
+    // ✅ Validate YouTube URL
+    const youtubeRegex = /^(https?:\/\/)?(www\.)?(youtube\.com|youtu\.be)\/.+/;
+    if (!youtubeRegex.test(url)) {
+      toast.error('Please enter a valid YouTube URL');
+      return;
+    }
+
     setIsLoading(true);
     try {
       await onSubmit(url);
-      toast.success('Video URL updated successfully');
+      // Success toast handled by parent
     } catch (error) {
       toast.error('Failed to update video URL');
     } finally {
@@ -29,7 +36,7 @@ export default function VideoUrlForm({ onSubmit, initialUrl = '' }) {
   };
 
   return (
-    <form onSubmit={handleSubmit} className="bg-white rounded-lg shadow-lg p-6 mb-4">
+    <form onSubmit={handleSubmit} className="bg-white rounded-lg shadow-lg p-6">
       <label className="block text-sm font-medium text-gray-700 mb-2">
         YouTube Video URL
       </label>
@@ -45,11 +52,16 @@ export default function VideoUrlForm({ onSubmit, initialUrl = '' }) {
         <button
           type="submit"
           disabled={isLoading}
-          className="px-6 py-2 bg-blue-500 text-white rounded hover:bg-blue-600 disabled:bg-gray-400 transition"
+          className="px-6 py-2 bg-blue-500 text-white rounded hover:bg-bg-blue-600 disabled:bg-gray-400 transition"
         >
-          {isLoading ? 'Saving...' : 'Set Video'}
+          {isLoading ? 'Saving...' : buttonText}
         </button>
       </div>
+      {initialUrl && (
+        <p className="text-xs text-gray-500 mt-2">
+          💡 Tip: Paste a new URL to change the video
+        </p>
+      )}
     </form>
   );
 }
