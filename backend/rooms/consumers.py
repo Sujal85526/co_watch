@@ -57,7 +57,7 @@ class RoomConsumer(AsyncWebsocketConsumer):
                 )
                 return
             
-            # ✅ NEW: Handle video action events
+            # Handle video action events
             if msg_type == "video_action":
                 action = data.get("action")
                 username = data.get("username")
@@ -67,6 +67,21 @@ class RoomConsumer(AsyncWebsocketConsumer):
                     {
                         "type": "video_action",
                         "action": action,
+                        "username": username
+                    }
+                )
+                return
+            
+            # ✅ NEW: Handle seek events
+            if msg_type == "seek":
+                timestamp = data.get("timestamp")
+                username = data.get("username")
+                
+                await self.channel_layer.group_send(
+                    self.room_group_name,
+                    {
+                        "type": "video_seek",
+                        "timestamp": timestamp,
                         "username": username
                     }
                 )
@@ -104,10 +119,17 @@ class RoomConsumer(AsyncWebsocketConsumer):
             "online_count": event.get("online_count", 1)  
         }))
 
-    # ✅ NEW: Video action broadcast handler
     async def video_action(self, event):
         await self.send(text_data=json.dumps({
             "type": "video_action",
             "action": event["action"],
+            "username": event["username"]
+        }))
+
+    # ✅ NEW: Seek broadcast handler
+    async def video_seek(self, event):
+        await self.send(text_data=json.dumps({
+            "type": "seek",
+            "timestamp": event["timestamp"],
             "username": event["username"]
         }))
