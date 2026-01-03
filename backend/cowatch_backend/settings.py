@@ -38,7 +38,7 @@ MIDDLEWARE = [
     'django.middleware.clickjacking.XFrameOptionsMiddleware',
 ]
 
-ROOT_URLCONF = 'core.urls'
+ROOT_URLCONF = 'cowatch_backend.urls'
 
 TEMPLATES = [
     {
@@ -56,8 +56,8 @@ TEMPLATES = [
     },
 ]
 
-WSGI_APPLICATION = 'core.wsgi.application'
-ASGI_APPLICATION = 'core.asgi.application'
+WSGI_APPLICATION = 'cowatch_backend.wsgi.application'
+ASGI_APPLICATION = 'cowatch_backend.asgi.application'
 
 # Database - Use Railway PostgreSQL in production
 if config('DATABASE_URL', default=None):
