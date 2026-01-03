@@ -2,7 +2,9 @@ venv/
 backend/venv/
 frontend/node_modules/
 .env
+!.env.production
 *.sqlite3
+
 
 # Logs
 logs
@@ -13,10 +15,12 @@ yarn-error.log*
 pnpm-debug.log*
 lerna-debug.log*
 
+
 node_modules
 dist
 dist-ssr
 *.local
+
 
 # Editor directories and files
 .vscode/*

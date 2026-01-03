@@ -10,7 +10,7 @@ export function useWebSocket(roomCode, onMessage) {  // ADD onMessage param
     if (!roomCode) return;
 
     const protocol = window.location.protocol === "https:" ? "wss:" : "ws:";
-    const wsUrl = `${protocol}//localhost:8000/ws/room/${roomCode}/`;
+    const wsUrl = `${import.meta.env.VITE_WS_URL}/ws/room/${roomCode}/`;
 
     const socket = new WebSocket(wsUrl);
     socketRef.current = socket;
