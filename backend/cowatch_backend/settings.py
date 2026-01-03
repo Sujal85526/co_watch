@@ -3,12 +3,15 @@ from decouple import config
 import dj_database_url
 import os
 
+
 BASE_DIR = Path(__file__).resolve().parent.parent
+
 
 # Security
 SECRET_KEY = config('SECRET_KEY', default='django-insecure-default-key-change-in-production')
 DEBUG = config('DEBUG', default=False, cast=bool)
 ALLOWED_HOSTS = config('ALLOWED_HOSTS', default='localhost,127.0.0.1,.onrender.com').split(',')
+
 
 # Application definition
 INSTALLED_APPS = [
@@ -26,6 +29,7 @@ INSTALLED_APPS = [
     'accounts',
 ]
 
+
 MIDDLEWARE = [
     'django.middleware.security.SecurityMiddleware',
     'whitenoise.middleware.WhiteNoiseMiddleware',  # Static files
@@ -38,7 +42,9 @@ MIDDLEWARE = [
     'django.middleware.clickjacking.XFrameOptionsMiddleware',
 ]
 
+
 ROOT_URLCONF = 'cowatch_backend.urls'
+
 
 TEMPLATES = [
     {
@@ -56,8 +62,10 @@ TEMPLATES = [
     },
 ]
 
+
 WSGI_APPLICATION = 'cowatch_backend.wsgi.application'
 ASGI_APPLICATION = 'cowatch_backend.asgi.application'
+
 
 # Database - Use Railway PostgreSQL in production
 if config('DATABASE_URL', default=None):
@@ -72,6 +80,7 @@ else:
         }
     }
 
+
 # Password validation
 AUTH_PASSWORD_VALIDATORS = [
     {'NAME': 'django.contrib.auth.password_validation.UserAttributeSimilarityValidator'},
@@ -80,22 +89,27 @@ AUTH_PASSWORD_VALIDATORS = [
     {'NAME': 'django.contrib.auth.password_validation.NumericPasswordValidator'},
 ]
 
+
 # Internationalization
 LANGUAGE_CODE = 'en-us'
 TIME_ZONE = 'UTC'
 USE_I18N = True
 USE_TZ = True
 
+
 # Static files
 STATIC_URL = '/static/'
 STATIC_ROOT = BASE_DIR / 'staticfiles'
 STATICFILES_STORAGE = 'whitenoise.storage.CompressedManifestStaticFilesStorage'
 
+
 # Default primary key field type
 DEFAULT_AUTO_FIELD = 'django.db.models.BigAutoField'
 
+
 # # Custom user model
 # AUTH_USER_MODEL = 'accounts.CustomUser'
+
 
 # REST Framework
 REST_FRAMEWORK = {
@@ -104,16 +118,25 @@ REST_FRAMEWORK = {
     ],
 }
 
-# CORS Settings
+
+# CORS Settings - ✅ UPDATED
 FRONTEND_URL = config('FRONTEND_URL', default='http://localhost:5173')
 CORS_ALLOWED_ORIGINS = [
+    'https://cowatch-hood.netlify.app',  # ✅ Production frontend
     FRONTEND_URL,
     'http://localhost:5173',
 ]
 CORS_ALLOW_CREDENTIALS = True
 
+# CSRF Settings - ✅ ADDED
+CSRF_TRUSTED_ORIGINS = [
+    'https://cowatch-hood.netlify.app',  # ✅ Production frontend
+]
+
+
 # Channels - Use Redis in production, in-memory for local
 REDIS_URL = config('REDIS_URL', default=None)
+
 
 if REDIS_URL:
     CHANNEL_LAYERS = {
@@ -130,6 +153,7 @@ else:
             'BACKEND': 'channels.layers.InMemoryChannelLayer'
         }
     }
+
 
 # Security settings for production
 if not DEBUG:
