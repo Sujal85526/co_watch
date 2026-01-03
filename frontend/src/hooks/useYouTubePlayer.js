@@ -4,9 +4,10 @@ import { useEffect, useRef, useCallback } from 'react';
  * Custom hook for managing YouTube IFrame Player
  * Handles player initialization, state changes, and actions
  */
-export const useYouTubePlayer = (videoUrl, onStateChange) => {
+export const useYouTubePlayer = (videoUrl, onStateChange, onSeek) => {
   const playerRef = useRef(null);
   const isInitializingRef = useRef(false);
+  const lastTimeRef = useRef(0);
 
   // Load YouTube IFrame API script
   useEffect(() => {
@@ -33,7 +34,13 @@ export const useYouTubePlayer = (videoUrl, onStateChange) => {
       playerRef.current = new window.YT.Player('youtube-player', {
         videoId,
         events: {
-          onReady: (event) => console.log('Player ready'),
+          onReady: (event) => {
+            console.log('Player ready');
+            // Start tracking seeks
+            if (onSeek) {
+              startSeekTracking();
+            }
+          },
           onStateChange: (event) => handleStateChange(event),
         },
       });
@@ -54,6 +61,28 @@ export const useYouTubePlayer = (videoUrl, onStateChange) => {
       }
     };
 
+    // ✅ NEW: Track seeking behavior
+    const startSeekTracking = () => {
+      const checkSeek = setInterval(() => {
+        if (playerRef.current && playerRef.current.getCurrentTime && !isInitializingRef.current) {
+          const currentTime = playerRef.current.getCurrentTime();
+          const timeDiff = Math.abs(currentTime - lastTimeRef.current);
+          
+          // If time jumped more than 1 second, it's a seek
+          if (timeDiff > 1) {
+            if (onSeek) {
+              onSeek(currentTime);
+            }
+          }
+          
+          lastTimeRef.current = currentTime;
+        }
+      }, 500); // Check every 500ms
+
+      // Store interval ID to clear on cleanup
+      playerRef.current._seekInterval = checkSeek;
+    };
+
     if (window.YT.loaded) {
       initializePlayer();
     } else {
@@ -62,10 +91,13 @@ export const useYouTubePlayer = (videoUrl, onStateChange) => {
 
     return () => {
       if (playerRef.current) {
+        if (playerRef.current._seekInterval) {
+          clearInterval(playerRef.current._seekInterval);
+        }
         playerRef.current.destroy();
       }
     };
-  }, [videoUrl, onStateChange]);
+  }, [videoUrl, onStateChange, onSeek]);
 
   const play = useCallback(() => {
     if (playerRef.current && playerRef.current.playVideo) {
@@ -79,6 +111,18 @@ export const useYouTubePlayer = (videoUrl, onStateChange) => {
     }
   }, []);
 
+  // ✅ NEW: Seek to specific timestamp
+  const seekTo = useCallback((timestamp) => {
+    if (playerRef.current && playerRef.current.seekTo) {
+      isInitializingRef.current = true;
+      playerRef.current.seekTo(timestamp, true);
+      lastTimeRef.current = timestamp;
+      setTimeout(() => {
+        isInitializingRef.current = false;
+      }, 500);
+    }
+  }, []);
+
   const setInitializing = useCallback((value) => {
     isInitializingRef.current = value;
   }, []);
@@ -86,7 +130,9 @@ export const useYouTubePlayer = (videoUrl, onStateChange) => {
   return {
     play,
     pause,
+    seekTo,  // ✅ NEW
     setInitializing,
+    playerRef,  // ✅ Expose ref for getCurrentTime access
   };
 };
 

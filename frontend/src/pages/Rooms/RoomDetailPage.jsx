@@ -11,10 +11,6 @@ import ChatPanel from '../../components/Chat/ChatPanel';
 import ShareModal from '../../components/Room/ShareModal';
 import toast from 'react-hot-toast';
 
-/**
- * Room detail page - orchestrates all room features
- * Delegates specific responsibilities to custom hooks and components
- */
 export default function RoomDetailPage() {
   const { id } = useParams();
   const navigate = useNavigate();
@@ -24,9 +20,8 @@ export default function RoomDetailPage() {
   const [messages, setMessages] = useState([]);
   const [onlineCount, setOnlineCount] = useState(0);
   const [showShareModal, setShowShareModal] = useState(false);
-  const [isChatOpen, setIsChatOpen] = useState(true);  // ✅ NEW: Chat toggle
-  const [isPlaying, setIsPlaying] = useState(false);  // ✅ NEW: Track play/pause state
-  const playerRef = useRef(null);
+  const [isChatOpen, setIsChatOpen] = useState(true);
+  const [isPlaying, setIsPlaying] = useState(false);
 
   // Fetch room data
   useEffect(() => {
@@ -66,14 +61,19 @@ export default function RoomDetailPage() {
         setOnlineCount(data.online_count);
       } else if (data.type === 'video_action') {
         // Only handle actions from other users
-        if (data.username !== user?.username && playerRef.current) {
+        if (data.username !== user?.username) {
           if (data.action === 'play') {
-            playerRef.current.playVideo();
-            setIsPlaying(true);  // ✅ Update state
+            player.play();
+            setIsPlaying(true);
           } else if (data.action === 'pause') {
-            playerRef.current.pauseVideo();
-            setIsPlaying(false);  // ✅ Update state
+            player.pause();
+            setIsPlaying(false);
           }
+        }
+      } else if (data.type === 'seek') {
+        // ✅ NEW: Handle seek events from other users
+        if (data.username !== user?.username) {
+          player.seekTo(data.timestamp);
         }
       }
     } catch (error) {
@@ -81,7 +81,7 @@ export default function RoomDetailPage() {
     }
   }, [user?.username]);
 
-  // Use your existing WebSocket hook
+  // Use WebSocket hook
   const { sendChat, socketRef } = useWebSocket(room?.code, handleMessage);
 
   // Send video action via WebSocket
@@ -95,34 +95,42 @@ export default function RoomDetailPage() {
     }
   }, [socketRef, user?.username]);
 
+  // ✅ NEW: Send seek event via WebSocket
+  const sendSeek = useCallback((timestamp) => {
+    if (socketRef.current?.readyState === WebSocket.OPEN) {
+      socketRef.current.send(JSON.stringify({
+        type: 'seek',
+        timestamp,
+        username: user?.username
+      }));
+    }
+  }, [socketRef, user?.username]);
+
   // YouTube player state change handler
   const handlePlayerStateChange = useCallback((action) => {
     sendVideoAction(action);
-    // Update local state
-    setIsPlaying(action === 'play');  // ✅ Update state
+    setIsPlaying(action === 'play');
   }, [sendVideoAction]);
 
-  // Initialize YouTube player with the hook
-  const player = useYouTubePlayer(room?.youtube_url, handlePlayerStateChange);
+  // ✅ NEW: Seek handler
+  const handleSeek = useCallback((timestamp) => {
+    sendSeek(timestamp);
+  }, [sendSeek]);
 
-  // Store player reference for video actions
-  useEffect(() => {
-    const timer = setTimeout(() => {
-      if (window.YT && window.YT.get) {
-        playerRef.current = window.YT.get('youtube-player');
-      }
-    }, 1000);
-    return () => clearTimeout(timer);
-  }, [room?.youtube_url]);
+  // Initialize YouTube player with seek support
+  const player = useYouTubePlayer(
+    room?.youtube_url, 
+    handlePlayerStateChange,
+    handleSeek  // ✅ Pass seek handler
+  );
 
-  // Video URL submission - ✅ FIXED: No reload
+  // Video URL submission
   const handleSetVideoUrl = async (url) => {
     await roomsApi.updateRoom(id, { youtube_url: url });
     setRoom(prev => ({ ...prev, youtube_url: url }));
-    // No window.location.reload() - hook will reinitialize automatically
   };
 
-  // ✅ NEW: Handle play/pause with state toggle
+  // Handle play/pause toggle
   const handlePlayPause = () => {
     if (isPlaying) {
       player.pause();
@@ -160,7 +168,6 @@ export default function RoomDetailPage() {
           </div>
         </div>
 
-        {/* ✅ NEW: Responsive Grid with Toggle */}
         <div className={`grid gap-4 transition-all duration-300 ${
           isChatOpen 
             ? 'grid-cols-1 lg:grid-cols-3' 
@@ -168,7 +175,6 @@ export default function RoomDetailPage() {
         }`}>
           {/* Video Section */}
           <div className={`space-y-4 ${isChatOpen ? 'lg:col-span-2' : 'col-span-1'}`}>
-            {/* ✅ NEW: Chat Toggle Button */}
             <button
               onClick={() => setIsChatOpen(!isChatOpen)}
               className="px-4 py-2 bg-gray-200 hover:bg-gray-300 rounded transition flex items-center gap-2 text-gray-700 font-medium"
@@ -194,13 +200,13 @@ export default function RoomDetailPage() {
               <VideoPlayer 
                 onPlay={player.play} 
                 onPause={player.pause}
-                isPlaying={isPlaying}  // ✅ Pass state
-                onPlayPause={handlePlayPause}  // ✅ Pass toggle handler
+                isPlaying={isPlaying}
+                onPlayPause={handlePlayPause}
               />
             )}
           </div>
 
-          {/* Chat Section - Conditionally Rendered */}
+          {/* Chat Section */}
           {isChatOpen && (
             <ChatPanel
               messages={messages}
