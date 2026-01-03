@@ -128,6 +128,9 @@ CORS_ALLOWED_ORIGINS = [
 ]
 CORS_ALLOW_CREDENTIALS = True
 
+CORS_ALLOW_HEADERS = ['*']
+CORS_ALLOW_METHODS = ['*']
+
 # CSRF Settings - ✅ ADDED
 CSRF_TRUSTED_ORIGINS = [
     'https://cowatch-hood.netlify.app',  # ✅ Production frontend
