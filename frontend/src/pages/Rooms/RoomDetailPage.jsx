@@ -22,6 +22,9 @@ export default function RoomDetailPage() {
   const [showShareModal, setShowShareModal] = useState(false);
   const [isChatOpen, setIsChatOpen] = useState(true);
   const [isPlaying, setIsPlaying] = useState(false);
+  
+  // ✅ Use ref to store player instance for callbacks
+  const playerRef = useRef(null);
 
   // Fetch room data
   useEffect(() => {
@@ -61,19 +64,23 @@ export default function RoomDetailPage() {
         setOnlineCount(data.online_count);
       } else if (data.type === 'video_action') {
         // Only handle actions from other users
-        if (data.username !== user?.username) {
+        if (data.username !== user?.username && playerRef.current) {
           if (data.action === 'play') {
-            player.play();
+            playerRef.current.play();
             setIsPlaying(true);
           } else if (data.action === 'pause') {
-            player.pause();
+            playerRef.current.pause();
             setIsPlaying(false);
           }
         }
       } else if (data.type === 'seek') {
-        // ✅ NEW: Handle seek events from other users
+        if (data.username !== user?.username && playerRef.current) {
+          playerRef.current.seekTo(data.timestamp);
+        }
+      } else if (data.type === 'video_url_changed') {
         if (data.username !== user?.username) {
-          player.seekTo(data.timestamp);
+          setRoom(prev => ({ ...prev, youtube_url: data.url }));
+          toast.success(`${data.username} changed the video`);
         }
       }
     } catch (error) {
@@ -95,7 +102,7 @@ export default function RoomDetailPage() {
     }
   }, [socketRef, user?.username]);
 
-  // ✅ NEW: Send seek event via WebSocket
+  // Send seek event via WebSocket
   const sendSeek = useCallback((timestamp) => {
     if (socketRef.current?.readyState === WebSocket.OPEN) {
       socketRef.current.send(JSON.stringify({
@@ -112,22 +119,41 @@ export default function RoomDetailPage() {
     setIsPlaying(action === 'play');
   }, [sendVideoAction]);
 
-  // ✅ NEW: Seek handler
+  // Seek handler
   const handleSeek = useCallback((timestamp) => {
     sendSeek(timestamp);
   }, [sendSeek]);
 
-  // Initialize YouTube player with seek support
+  // Initialize YouTube player
   const player = useYouTubePlayer(
     room?.youtube_url, 
     handlePlayerStateChange,
-    handleSeek  // ✅ Pass seek handler
+    handleSeek
   );
+
+  // ✅ Store player in ref for use in callbacks
+  useEffect(() => {
+    playerRef.current = player;
+  }, [player]);
 
   // Video URL submission
   const handleSetVideoUrl = async (url) => {
-    await roomsApi.updateRoom(id, { youtube_url: url });
-    setRoom(prev => ({ ...prev, youtube_url: url }));
+    try {
+      await roomsApi.updateRoom(id, { youtube_url: url });
+      setRoom(prev => ({ ...prev, youtube_url: url }));
+      
+      if (socketRef.current?.readyState === WebSocket.OPEN) {
+        socketRef.current.send(JSON.stringify({
+          type: 'video_url_changed',
+          url: url,
+          username: user?.username
+        }));
+      }
+      
+      toast.success('Video updated!');
+    } catch (error) {
+      toast.error('Failed to update video');
+    }
   };
 
   // Handle play/pause toggle
@@ -148,8 +174,6 @@ export default function RoomDetailPage() {
       </div>
     );
   }
-
-  const isOwner = room.owner === user?.id;
 
   return (
     <div className="min-h-screen bg-gray-50 p-4">
@@ -192,10 +216,12 @@ export default function RoomDetailPage() {
               )}
             </button>
 
-            {!room.youtube_url && isOwner && (
-              <VideoUrlForm onSubmit={handleSetVideoUrl} />
-            )}
-            
+            <VideoUrlForm 
+              onSubmit={handleSetVideoUrl}
+              initialUrl={room.youtube_url || ''}
+              buttonText={room.youtube_url ? 'Change Video' : 'Set Video'}
+            />
+
             {room.youtube_url && (
               <VideoPlayer 
                 onPlay={player.play} 

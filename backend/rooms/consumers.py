@@ -72,7 +72,7 @@ class RoomConsumer(AsyncWebsocketConsumer):
                 )
                 return
             
-            # ✅ NEW: Handle seek events
+            # Handle seek events
             if msg_type == "seek":
                 timestamp = data.get("timestamp")
                 username = data.get("username")
@@ -82,6 +82,21 @@ class RoomConsumer(AsyncWebsocketConsumer):
                     {
                         "type": "video_seek",
                         "timestamp": timestamp,
+                        "username": username
+                    }
+                )
+                return
+            
+            # ✅ NEW: Handle video URL change events
+            if msg_type == "video_url_changed":
+                new_url = data.get("url")
+                username = data.get("username")
+                
+                await self.channel_layer.group_send(
+                    self.room_group_name,
+                    {
+                        "type": "video_url_changed",
+                        "url": new_url,
                         "username": username
                     }
                 )
@@ -126,10 +141,17 @@ class RoomConsumer(AsyncWebsocketConsumer):
             "username": event["username"]
         }))
 
-    # ✅ NEW: Seek broadcast handler
     async def video_seek(self, event):
         await self.send(text_data=json.dumps({
             "type": "seek",
             "timestamp": event["timestamp"],
+            "username": event["username"]
+        }))
+
+    # ✅ NEW: Video URL change broadcast handler
+    async def video_url_changed(self, event):
+        await self.send(text_data=json.dumps({
+            "type": "video_url_changed",
+            "url": event["url"],
             "username": event["username"]
         }))
