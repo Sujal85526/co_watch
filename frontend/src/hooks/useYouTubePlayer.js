@@ -1,339 +1,146 @@
-import { useState, useEffect, useCallback, useRef } from 'react';
-import { useParams, useNavigate } from 'react-router-dom';
-import { Share2, MessageSquare, X, Wifi, WifiOff } from 'lucide-react';
-import * as roomsApi from '../../api/roomsApi';
-import { useAuth } from '../../hooks/useAuth';
-import { useYouTubePlayer } from '../../hooks/useYouTubePlayer';
-import { useWebSocket } from '../../hooks/useWebSocket';
-import VideoPlayer from '../../components/VideoPlayer/VideoPlayer';
-import VideoUrlForm from '../../components/VideoPlayer/VideoUrlForm';
-import ChatPanel from '../../components/Chat/ChatPanel';
-import ShareModal from '../../components/Room/ShareModal';
-import toast from 'react-hot-toast';
+import { useEffect, useRef, useCallback } from 'react';
 
-export default function RoomDetailPage() {
-  const { id } = useParams();
-  const navigate = useNavigate();
-  const { user } = useAuth();
-
-  const [room, setRoom] = useState(null);
-  const [messages, setMessages] = useState([]);
-  const [onlineCount, setOnlineCount] = useState(0);
-  const [showShareModal, setShowShareModal] = useState(false);
-  const [isChatOpen, setIsChatOpen] = useState(true);
-  const [isPlaying, setIsPlaying] = useState(false);
-  const [isLoadingVideo, setIsLoadingVideo] = useState(false);  // ✅ NEW
-  const [roomError, setRoomError] = useState(null);  // ✅ NEW
-  
+/**
+ * Custom hook for managing YouTube IFrame Player
+ * Handles player initialization, state changes, and actions
+ */
+export const useYouTubePlayer = (videoUrl, onStateChange, onSeek) => {
   const playerRef = useRef(null);
+  const isInitializingRef = useRef(false);
+  const lastTimeRef = useRef(0);
 
-  // Fetch room data with error handling
+  // Load YouTube IFrame API script
   useEffect(() => {
-    const fetchRoom = async () => {
-      try {
-        setRoomError(null);  // ✅ Clear previous errors
-        const data = await roomsApi.getRoom(id);
-        setRoom(data);
-        if (data.youtube_url) {
-          setIsLoadingVideo(true);  // ✅ Show loading when video exists
-        }
-      } catch (error) {
-        console.error('Failed to load room:', error);
-        setRoomError('Failed to load room. Please try again.');
-        toast.error('Failed to load room');
-        setTimeout(() => navigate('/rooms'), 2000);
+    if (!window.YT) {
+      const tag = document.createElement('script');
+      tag.src = 'https://www.youtube.com/iframe_api';
+      const firstScriptTag = document.getElementsByTagName('script')[0];
+      firstScriptTag.parentNode.insertBefore(tag, firstScriptTag);
+    }
+  }, []);
+
+  // Initialize player when video URL changes
+  useEffect(() => {
+    if (!videoUrl || !window.YT) return;
+
+    const videoId = extractVideoId(videoUrl);
+    if (!videoId) return;
+
+    const initializePlayer = () => {
+      if (playerRef.current) {
+        playerRef.current.destroy();
+      }
+
+      playerRef.current = new window.YT.Player('youtube-player', {
+        videoId,
+        events: {
+          onReady: (event) => {
+            console.log('Player ready');
+            // Start tracking seeks
+            if (onSeek) {
+              startSeekTracking();
+            }
+          },
+          onStateChange: (event) => handleStateChange(event),
+        },
+      });
+    };
+
+    const handleStateChange = (event) => {
+      if (isInitializingRef.current) return;
+
+      let action = null;
+      if (event.data === window.YT.PlayerState.PLAYING) {
+        action = 'play';
+      } else if (event.data === window.YT.PlayerState.PAUSED) {
+        action = 'pause';
+      }
+
+      if (action && onStateChange) {
+        onStateChange(action);
       }
     };
-    fetchRoom();
-  }, [id, navigate]);
 
-  // WebSocket message handler
-  const handleMessage = useCallback((event) => {
-    try {
-      const data = JSON.parse(event.data);
-      
-      if (data.type === 'chat_message') {
-        setMessages(prev => [...prev, { 
-          text: data.message, 
-          username: data.username 
-        }]);
-      } else if (data.type === 'user_joined') {
-        setMessages(prev => [...prev, { 
-          text: `${data.username} joined`, 
-          system: true 
-        }]);
-        setOnlineCount(data.online_count);
-      } else if (data.type === 'user_left') {
-        setMessages(prev => [...prev, { 
-          text: `${data.username} left`, 
-          system: true 
-        }]);
-        setOnlineCount(data.online_count);
-      } else if (data.type === 'video_action') {
-        if (data.username !== user?.username && playerRef.current) {
-          if (data.action === 'play') {
-            playerRef.current.play();
-            setIsPlaying(true);
-          } else if (data.action === 'pause') {
-            playerRef.current.pause();
-            setIsPlaying(false);
+    // ✅ NEW: Track seeking behavior
+    const startSeekTracking = () => {
+      const checkSeek = setInterval(() => {
+        if (playerRef.current && playerRef.current.getCurrentTime && !isInitializingRef.current) {
+          const currentTime = playerRef.current.getCurrentTime();
+          const timeDiff = Math.abs(currentTime - lastTimeRef.current);
+          
+          // If time jumped more than 1 second, it's a seek
+          if (timeDiff > 1) {
+            if (onSeek) {
+              onSeek(currentTime);
+            }
           }
+          
+          lastTimeRef.current = currentTime;
         }
-      } else if (data.type === 'seek') {
-        if (data.username !== user?.username && playerRef.current) {
-          playerRef.current.seekTo(data.timestamp);
-        }
-      } else if (data.type === 'video_url_changed') {
-        if (data.username !== user?.username) {
-          setIsLoadingVideo(true);  // ✅ Show loading when URL changes
-          setRoom(prev => ({ ...prev, youtube_url: data.url }));
-          toast.success(`${data.username} changed the video`);
-        }
-      }
-    } catch (error) {
-      console.error('Error parsing WebSocket message:', error);
-      toast.error('Connection error occurred');
-    }
-  }, [user?.username]);
+      }, 500); // Check every 500ms
 
-  // Use WebSocket hook
-  const { sendChat, socketRef, isConnected } = useWebSocket(room?.code, handleMessage);
+      // Store interval ID to clear on cleanup
+      playerRef.current._seekInterval = checkSeek;
+    };
 
-  // ✅ Show connection status toast
-  useEffect(() => {
-    if (isConnected === false && room) {
-      toast.error('Connection lost. Trying to reconnect...', {
-        id: 'connection-lost',
-        duration: Infinity,
-      });
-    } else if (isConnected === true) {
-      toast.dismiss('connection-lost');
-    }
-  }, [isConnected, room]);
-
-  // Send video action via WebSocket
-  const sendVideoAction = useCallback((action) => {
-    if (socketRef.current?.readyState === WebSocket.OPEN) {
-      socketRef.current.send(JSON.stringify({
-        type: 'video_action',
-        action,
-        username: user?.username
-      }));
+    if (window.YT.loaded) {
+      initializePlayer();
     } else {
-      toast.error('Not connected. Please wait...');
-    }
-  }, [socketRef, user?.username]);
-
-  // Send seek event via WebSocket
-  const sendSeek = useCallback((timestamp) => {
-    if (socketRef.current?.readyState === WebSocket.OPEN) {
-      socketRef.current.send(JSON.stringify({
-        type: 'seek',
-        timestamp,
-        username: user?.username
-      }));
-    }
-  }, [socketRef, user?.username]);
-
-  // YouTube player state change handler
-  const handlePlayerStateChange = useCallback((action) => {
-    sendVideoAction(action);
-    setIsPlaying(action === 'play');
-  }, [sendVideoAction]);
-
-  // Seek handler
-  const handleSeek = useCallback((timestamp) => {
-    sendSeek(timestamp);
-  }, [sendSeek]);
-
-  // Initialize YouTube player
-  const player = useYouTubePlayer(
-    room?.youtube_url, 
-    handlePlayerStateChange,
-    handleSeek
-  );
-
-  // Store player in ref
-  useEffect(() => {
-    playerRef.current = player;
-  }, [player]);
-
-  // ✅ Hide loading spinner after player ready
-  useEffect(() => {
-    if (room?.youtube_url && player) {
-      const timer = setTimeout(() => {
-        setIsLoadingVideo(false);
-      }, 2000); // Give player time to initialize
-      return () => clearTimeout(timer);
-    }
-  }, [room?.youtube_url, player]);
-
-  // Video URL submission with error handling
-  const handleSetVideoUrl = async (url) => {
-    // ✅ Validate YouTube URL
-    const youtubeRegex = /^(https?:\/\/)?(www\.)?(youtube\.com|youtu\.be)\/.+/;
-    if (!youtubeRegex.test(url)) {
-      toast.error('Please enter a valid YouTube URL');
-      return;
+      window.onYouTubeIframeAPIReady = initializePlayer;
     }
 
-    try {
-      setIsLoadingVideo(true);
-      await roomsApi.updateRoom(id, { youtube_url: url });
-      setRoom(prev => ({ ...prev, youtube_url: url }));
-      
-      if (socketRef.current?.readyState === WebSocket.OPEN) {
-        socketRef.current.send(JSON.stringify({
-          type: 'video_url_changed',
-          url: url,
-          username: user?.username
-        }));
+    return () => {
+      if (playerRef.current) {
+        if (playerRef.current._seekInterval) {
+          clearInterval(playerRef.current._seekInterval);
+        }
+        playerRef.current.destroy();
       }
-      
-      toast.success('Video updated!');
-    } catch (error) {
-      console.error('Failed to update video:', error);
-      toast.error('Failed to update video. Please try again.');
-      setIsLoadingVideo(false);
+    };
+  }, [videoUrl, onStateChange, onSeek]);
+
+  const play = useCallback(() => {
+    if (playerRef.current && playerRef.current.playVideo) {
+      playerRef.current.playVideo();
     }
-  };
+  }, []);
 
-  // Handle play/pause toggle
-  const handlePlayPause = () => {
-    if (isPlaying) {
-      player.pause();
-      setIsPlaying(false);
-    } else {
-      player.play();
-      setIsPlaying(true);
+  const pause = useCallback(() => {
+    if (playerRef.current && playerRef.current.pauseVideo) {
+      playerRef.current.pauseVideo();
     }
+  }, []);
+
+  // ✅ NEW: Seek to specific timestamp
+  const seekTo = useCallback((timestamp) => {
+    if (playerRef.current && playerRef.current.seekTo) {
+      isInitializingRef.current = true;
+      playerRef.current.seekTo(timestamp, true);
+      lastTimeRef.current = timestamp;
+      setTimeout(() => {
+        isInitializingRef.current = false;
+      }, 500);
+    }
+  }, []);
+
+  const setInitializing = useCallback((value) => {
+    isInitializingRef.current = value;
+  }, []);
+
+  return {
+    play,
+    pause,
+    seekTo,  // ✅ NEW
+    setInitializing,
+    playerRef,  // ✅ Expose ref for getCurrentTime access
   };
+};
 
-  // ✅ Error state
-  if (roomError) {
-    return (
-      <div className="min-h-screen bg-gray-50 flex items-center justify-center">
-        <div className="text-center">
-          <div className="text-6xl mb-4">⚠️</div>
-          <p className="text-xl text-red-600 mb-2">{roomError}</p>
-          <p className="text-gray-500">Redirecting to rooms...</p>
-        </div>
-      </div>
-    );
-  }
-
-  // Loading state
-  if (!room) {
-    return (
-      <div className="min-h-screen bg-gray-50 flex items-center justify-center">
-        <div className="text-center">
-          <div className="animate-spin rounded-full h-12 w-12 border-b-2 border-blue-500 mx-auto mb-4"></div>
-          <p className="text-xl text-gray-600">Loading room...</p>
-        </div>
-      </div>
-    );
-  }
-
-  return (
-    <div className="min-h-screen bg-gray-50 p-4">
-      <div className="max-w-7xl mx-auto">
-        {/* Header with connection status */}
-        <div className="bg-white rounded-lg shadow-lg p-6 mb-4">
-          <div className="flex justify-between items-center">
-            <div className="flex items-center gap-3">
-              <h1 className="text-2xl font-bold text-gray-800">{room.name}</h1>
-              {/* ✅ Connection indicator */}
-              {isConnected ? (
-                <span className="flex items-center gap-1 text-green-600 text-sm">
-                  <Wifi size={16} />
-                  Connected
-                </span>
-              ) : (
-                <span className="flex items-center gap-1 text-red-600 text-sm">
-                  <WifiOff size={16} />
-                  Disconnected
-                </span>
-              )}
-            </div>
-            <button
-              onClick={() => setShowShareModal(true)}
-              className="flex items-center gap-2 px-4 py-2 bg-blue-500 text-white rounded hover:bg-blue-600 transition"
-            >
-              <Share2 size={18} />
-              Share Room
-            </button>
-          </div>
-        </div>
-
-        <div className={`grid gap-4 transition-all duration-300 ${
-          isChatOpen 
-            ? 'grid-cols-1 lg:grid-cols-3' 
-            : 'grid-cols-1'
-        }`}>
-          {/* Video Section */}
-          <div className={`space-y-4 ${isChatOpen ? 'lg:col-span-2' : 'col-span-1'}`}>
-            <button
-              onClick={() => setIsChatOpen(!isChatOpen)}
-              className="px-4 py-2 bg-gray-200 hover:bg-gray-300 rounded transition flex items-center gap-2 text-gray-700 font-medium"
-            >
-              {isChatOpen ? (
-                <>
-                  <X size={18} />
-                  <span>Hide Chat</span>
-                </>
-              ) : (
-                <>
-                  <MessageSquare size={18} />
-                  <span>Show Chat</span>
-                </>
-              )}
-            </button>
-
-            <VideoUrlForm 
-              onSubmit={handleSetVideoUrl}
-              initialUrl={room.youtube_url || ''}
-              buttonText={room.youtube_url ? 'Change Video' : 'Set Video'}
-            />
-
-            {room.youtube_url && (
-              <VideoPlayer 
-                onPlay={player.play} 
-                onPause={player.pause}
-                isPlaying={isPlaying}
-                onPlayPause={handlePlayPause}
-                isLoading={isLoadingVideo}  // ✅ Pass loading state
-              />
-            )}
-
-            {/* ✅ No video state */}
-            {!room.youtube_url && (
-              <div className="bg-white rounded-lg shadow-lg p-12 text-center">
-                <div className="text-6xl mb-4">🎬</div>
-                <p className="text-gray-600 text-lg">
-                  No video set yet. Paste a YouTube URL above to get started!
-                </p>
-              </div>
-            )}
-          </div>
-
-          {/* Chat Section */}
-          {isChatOpen && (
-            <ChatPanel
-              messages={messages}
-              onlineCount={onlineCount}
-              onSendMessage={sendChat}
-            />
-          )}
-        </div>
-      </div>
-
-      {/* Share Modal */}
-      {showShareModal && (
-        <ShareModal
-          roomCode={room.code}
-          onClose={() => setShowShareModal(false)}
-        />
-      )}
-    </div>
-  );
+/**
+ * Extract YouTube video ID from URL
+ */
+function extractVideoId(url) {
+  const regex = /(?:youtube\.com\/(?:[^\/]+\/.+\/|(?:v|e(?:mbed)?)\/|.*[?&]v=)|youtu\.be\/)([^"&?\/\s]{11})/;
+  const match = url.match(regex);
+  return match ? match[1] : null;
 }
