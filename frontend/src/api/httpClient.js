@@ -6,9 +6,12 @@ const httpClient = axios.create({
 
 httpClient.interceptors.request.use((config) => {
   const token = localStorage.getItem('cowatch_token')
-  if (token) {
+  
+  // ✅ Only add token if NOT an auth endpoint
+  if (token && !config.url.includes('auth/')) {
     config.headers.Authorization = `Token ${token}`
   }
+  
   return config
 })
 
