@@ -1,8 +1,9 @@
 from django.urls import path
-from .views import register, login, me
+from django.views.decorators.csrf import csrf_exempt  # ✅ ADD THIS
+from . import views
 
 urlpatterns = [
-    path('register/', register, name='register'),
-    path('login/', login, name='login'),
-    path('me/', me, name='me'),
+    path('register/', csrf_exempt(views.register), name='register'),  # ✅ WRAP
+    path('login/', csrf_exempt(views.login), name='login'),  # ✅ WRAP
+    path('me/', views.me, name='me'),
 ]
