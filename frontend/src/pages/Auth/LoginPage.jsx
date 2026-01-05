@@ -13,7 +13,7 @@ export default function LoginPage() {
     setLoading(true)
     try {
       await login(formData.username, formData.password)
-      navigate('/welcome')  // ← FIXED: Welcome page
+      navigate('/welcome')  
     } catch (error) {
       console.error('Login failed:', error)
     } finally {

@@ -13,7 +13,7 @@ export default function RegisterPage() {
     setLoading(true)
     try {
       await register(formData.username, formData.password)
-      navigate('/rooms')
+      navigate('/welcome')
     } catch (error) {
       console.error('Registration failed:', error)
     } finally {

@@ -4,6 +4,7 @@ import { useAuth } from '../../hooks/useAuth.jsx'
 import { listRooms, createRoom } from '../../api/roomsApi.js'
 import { Plus, Users, Loader2 } from 'lucide-react'
 
+
 export default function RoomsListPage() {
   const [rooms, setRooms] = useState([])
   const [loading, setLoading] = useState(true)
@@ -11,9 +12,11 @@ export default function RoomsListPage() {
   const [roomName, setRoomName] = useState('')
   const { user } = useAuth()
 
+
   useEffect(() => {
     fetchRooms()
   }, [])
+
 
   const fetchRooms = async () => {
     setLoading(true)
@@ -26,6 +29,7 @@ export default function RoomsListPage() {
       setLoading(false)
     }
   }
+
 
   const handleCreateRoom = async (e) => {
     e.preventDefault()
@@ -43,6 +47,7 @@ export default function RoomsListPage() {
     }
   }
 
+
   if (loading) {
     return (
       <div className="min-h-screen flex items-center justify-center bg-gray-50 pt-20">
@@ -53,6 +58,7 @@ export default function RoomsListPage() {
       </div>
     )
   }
+
 
   return (
     <div className="max-w-6xl mx-auto p-8">
@@ -94,6 +100,7 @@ export default function RoomsListPage() {
         </form>
       </div>
 
+
       {rooms.length === 0 ? (
         <div className="text-center py-24 bg-white/50 backdrop-blur-sm rounded-3xl shadow-xl border border-white/30">
           <Users className="w-20 h-20 text-gray-400 mx-auto mb-6" />
@@ -132,13 +139,13 @@ export default function RoomsListPage() {
                   <span className="text-indigo-700 font-mono text-sm font-bold">{room.code}</span>
                 </div>
               </div>
+              {/* ✅ OWNER REMOVED - Only show YouTube status */}
               <div className="space-y-2 mb-8">
-                <div className="flex items-center text-sm text-gray-600">
-                  <div className="w-2 h-2 bg-green-400 rounded-full mr-2"></div>
-                  Owner: <span className="font-medium ml-1">{room.owner}</span>
-                </div>
                 {room.youtube_url && (
-                  <div className="text-sm text-gray-500">YouTube video ready</div>
+                  <div className="flex items-center text-sm text-gray-500">
+                    <div className="w-2 h-2 bg-green-400 rounded-full mr-2"></div>
+                    YouTube video ready
+                  </div>
                 )}
               </div>
               <div className="flex items-center justify-between pt-6 border-t border-gray-100">
