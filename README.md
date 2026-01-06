@@ -1,16 +1,99 @@
-# React + Vite
+# 🟣 CoWatch - Synchronized YouTube Watch Together Platform
 
-This template provides a minimal setup to get React working in Vite with HMR and some ESLint rules.
+Real-time collaborative video watching application with synchronized playback, live chat, and WebSocket communication.
 
-Currently, two official plugins are available:
+## 🚀 Features
 
-- [@vitejs/plugin-react](https://github.com/vitejs/vite-plugin-react/blob/main/packages/plugin-react) uses [Babel](https://babeljs.io/) (or [oxc](https://oxc.rs) when used in [rolldown-vite](https://vite.dev/guide/rolldown)) for Fast Refresh
-- [@vitejs/plugin-react-swc](https://github.com/vitejs/vite-plugin-react/blob/main/packages/plugin-react-swc) uses [SWC](https://swc.rs/) for Fast Refresh
+- **User Authentication** - Token-based registration/login with Django REST Framework
+- **Room Management** - Create private rooms with unique 6-character codes
+- **Real-time Sync** - WebSocket-powered video playback synchronization across users
+- **Live Chat** - Per-room messaging with presence tracking
+- **YouTube Integration** - Embedded player with shared controls
+- **Responsive UI** - Modern React interface with Tailwind CSS
 
-## React Compiler
+## 🛠️ Tech Stack
 
-The React Compiler is not enabled on this template because of its impact on dev & build performances. To add it, see [this documentation](https://react.dev/learn/react-compiler/installation).
+### Backend
+- **Django 4.x** - Web framework
+- **Django REST Framework** - API endpoints
+- **Django Channels** - WebSocket support
+- **Daphne** - ASGI server
+- **Redis (Upstash)** - Channel layer backend
+- **PostgreSQL** - Production database
 
-## Expanding the ESLint configuration
+### Frontend
+- **React 18** - UI framework
+- **Vite** - Build tool
+- **Tailwind CSS** - Styling
+- **React Router** - Navigation
+- **Axios** - HTTP client
 
-If you are developing a production application, we recommend using TypeScript with type-aware lint rules enabled. Check out the [TS template](https://github.com/vitejs/vite/tree/main/packages/create-vite/template-react-ts) for information on how to integrate TypeScript and [`typescript-eslint`](https://typescript-eslint.io) in your project.
+## 📦 Installation
+
+### Prerequisites
+- Python 3.10+
+- Node.js 18+
+- Redis (or Upstash account)
+
+### Backend Setup
+```bash
+cd backend
+python -m venv venv
+source venv/bin/activate  # Windows: venv\Scripts\activate
+pip install -r requirements.txt
+python manage.py migrate
+python manage.py runserver
+```
+
+### Frontend Setup
+```bash
+cd frontend
+npm install
+npm run dev
+```
+
+## 🔧 Environment Variables
+
+### Backend `.env`
+```env
+SECRET_KEY=your-secret-key
+DEBUG=True
+DATABASE_URL=postgresql://...
+REDIS_URL=rediss://default:password@host.upstash.io:6379
+FRONTEND_URL=http://localhost:5173
+```
+
+### Frontend `.env`
+```env
+VITE_API_URL=http://localhost:8000
+```
+
+## 🌐 Deployment
+
+**Live URLs:**
+- Frontend: https://cowatch-hood.netlify.app
+- Backend: https://co-watch.onrender.com
+
+### Deploy Backend (Render)
+1. Create Web Service from GitHub
+2. Build: `pip install -r backend/requirements.txt`
+3. Start: `daphne -b 0.0.0.0 -p $PORT --proxy-headers cowatch_backend.asgi:application`
+4. Add environment variables (REDIS_URL, DATABASE_URL, etc.)
+
+### Deploy Frontend (Netlify)
+1. Build command: `cd frontend && npm run build`
+2. Publish directory: `frontend/dist`
+3. Environment: `VITE_API_URL=https://co-watch.onrender.com`
+
+## 📝 Usage
+
+1. **Register/Login** → Redirects to welcome page
+2. **Create Room** → Generate unique code
+3. **Share Code** → Invite friends to join
+4. **Watch Together** → Synced playback + live chat
+
+
+
+## 📄 License
+
+Personal Project
